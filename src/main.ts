@@ -1,6 +1,6 @@
 import "./style.css";
 
-const APP_NAME = "Fun Sticker Sketchpad";
+const APP_NAME = "Doodle Pad";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 document.title = APP_NAME;
@@ -11,7 +11,7 @@ let strokeX = 0;
 let strokeY = 0;
 
 const sketchpadTitle = document.createElement("h1");
-sketchpadTitle.textContent = APP_NAME;
+sketchpadTitle.innerHTML = APP_NAME;
 
 app.append(sketchpadTitle);
 
@@ -26,7 +26,7 @@ if (context) {
   context.strokeStyle = "black";
   context.lineWidth = 2;
 } else {
-    throw new Error('Context not found.');
+  throw new Error("Context not found.");
 }
 
 app.append(sketchCanvas);
@@ -70,4 +70,16 @@ function drawLine(
   context.lineTo(endX, endY);
   context.stroke();
   context.closePath();
+}
+
+// Clear canvas button
+const clearButton = document.createElement("button");
+clearButton.innerHTML = "clear";
+clearButton.addEventListener("click", clearCanvas);
+app.append(clearButton);
+
+function clearCanvas(): void {
+  if (context) {
+    context.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+  }
 }
