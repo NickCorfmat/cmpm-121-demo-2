@@ -6,7 +6,6 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 document.title = APP_NAME;
 
 // Interfaces
-
 interface Point {
   x: number;
   y: number;
@@ -14,9 +13,8 @@ interface Point {
 
 // Global variables
 let isDrawing = false;
-let strokeX = 0;
-let strokeY = 0;
-const strokes: Array<Array<Point>> = [];
+let strokes: Array<Array<Point>> = [];
+let currentStroke: Array<Point> = [];
 
 const sketchpadTitle = document.createElement("h1");
 sketchpadTitle.innerHTML = APP_NAME;
@@ -43,18 +41,16 @@ app.append(sketchCanvas);
 // Source: MDN web docs, https://developer.mozilla.org/en-US/docs/Web/API/Element/mousemove_event
 sketchCanvas.addEventListener("mousedown", (e) => {
   isDrawing = true;
-
-  const currentPoint: Point = getMousePosition(sketchCanvas, e);
-  strokes.push([currentPoint]);
+  strokes.push([getMousePosition(sketchCanvas, e)]);
 });
 
 sketchCanvas.addEventListener("mousemove", (e) => {
   if (isDrawing) {
-    let currentStroke: Array<Point> = strokes[strokes.length - 1];
+    currentStroke = strokes[strokes.length - 1];
+    currentStroke.push(getMousePosition(sketchCanvas, e));
 
-    const currentPoint: Point = getMousePosition(sketchCanvas, e);
-    currentStroke.push(currentPoint);
-    drawingChangedEvent();
+    const event = new Event("drawing-changed");
+    sketchCanvas.dispatchEvent(event);
   }
 });
 
@@ -67,21 +63,11 @@ function getMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
 }
 
 window.addEventListener("mouseup", (e) => {
-  if (isDrawing) {
-    drawLine(context!, strokeX, strokeY, e.offsetX, e.offsetY);
-    strokeX = 0;
-    strokeY = 0;
-    isDrawing = false;
-  }
+  isDrawing = false;
 });
 
-function drawingChangedEvent(): void {
-  const event = new Event("drawing-changed");
-  sketchCanvas.dispatchEvent(event);
-}
-
 sketchCanvas.addEventListener("drawing-changed", () => {
-  clearCanvas();
+  context.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
   redrawCanvas();
 });
 
@@ -93,17 +79,28 @@ function drawLine(
   endY: number
 ) {
   context.beginPath();
-  context.strokeStyle = "black";
-  context.lineWidth = 1;
   context.moveTo(startX, startY);
   context.lineTo(endX, endY);
   context.stroke();
   context.closePath();
 }
 
+function redrawCanvas(): void {
+  if (context) {
+    strokes.forEach((stroke) => {
+      // Draw stroke
+      stroke.forEach((point, i) => {
+        const nextPoint = stroke[i + 1] || point;
+        drawLine(context, point.x, point.y, nextPoint.x, nextPoint.y);
+      });
+    });
+  }
+}
+
 // Clear canvas button
 const clearButton = document.createElement("button");
 clearButton.innerHTML = "clear";
+
 clearButton.addEventListener("click", clearCanvas);
 app.append(clearButton);
 
@@ -111,15 +108,6 @@ app.append(clearButton);
 function clearCanvas(): void {
   if (context) {
     context.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
-  }
-}
-
-function redrawCanvas(): void {
-  if (context) {
-    strokes.forEach((stroke) => {
-      context.beginPath();
-
-      stroke.forEach((point) => {});
-    });
+    strokes = [];
   }
 }
