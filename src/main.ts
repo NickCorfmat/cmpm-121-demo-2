@@ -15,6 +15,7 @@ interface Point {
 let isDrawing = false;
 let strokes: Array<Array<Point>> = [];
 let currentStroke: Array<Point> = [];
+let redoStack: Array<Array<Point>> = [];
 
 const sketchpadTitle = document.createElement("h1");
 sketchpadTitle.innerHTML = APP_NAME;
@@ -42,17 +43,21 @@ app.append(sketchCanvas);
 sketchCanvas.addEventListener("mousedown", (e) => {
   isDrawing = true;
   strokes.push([getMousePosition(sketchCanvas, e)]);
+  redoStack = [];
 });
 
 sketchCanvas.addEventListener("mousemove", (e) => {
   if (isDrawing) {
     currentStroke = strokes[strokes.length - 1];
     currentStroke.push(getMousePosition(sketchCanvas, e));
-
-    const event = new Event("drawing-changed");
-    sketchCanvas.dispatchEvent(event);
+    dispatchDrawingEventChanged();
   }
 });
+
+function dispatchDrawingEventChanged(): void {
+  const event = new Event("drawing-changed");
+  sketchCanvas.dispatchEvent(event);
+}
 
 // Source: https://www.geeksforgeeks.org/how-to-get-the-coordinates-of-a-mouse-click-on-a-canvas-element/
 function getMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
@@ -98,11 +103,7 @@ function redrawCanvas(): void {
 }
 
 // Clear canvas button
-const clearButton = document.createElement("button");
-clearButton.innerHTML = "clear";
-
-clearButton.addEventListener("click", clearCanvas);
-app.append(clearButton);
+const clearButton = createButton("clear", clearCanvas);
 
 // Source: StackOverflow, https://stackoverflow.com/questions/2142535/how-to-clear-the-canvas-for-redrawing
 function clearCanvas(): void {
@@ -110,4 +111,34 @@ function clearCanvas(): void {
     context.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
     strokes = [];
   }
+}
+
+// Undo stroke button
+const undoButton = createButton("undo", undoStroke);
+
+function undoStroke(): void {
+  if (strokes.length > 0) {
+    redoStack.push(strokes.pop()!); // Source: Brace, "How can remove the last item from one array and add it to another in one line?"
+    dispatchDrawingEventChanged();
+  }
+}
+
+// Redo stroke button
+const redoButton = createButton("redo", redoStroke);
+
+function redoStroke(): void {
+  if (redoStack.length > 0) {
+    strokes.push(redoStack.pop()!);
+    dispatchDrawingEventChanged();
+  }
+}
+
+// Create a button with a click event listener
+function createButton(text: string, clickHandler: EventListener) {
+  const button = document.createElement("button");
+  button.innerHTML = text;
+  button.addEventListener("click", clickHandler);
+
+  app.append(button);
+  return button;
 }
