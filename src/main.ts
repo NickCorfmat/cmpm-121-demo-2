@@ -13,9 +13,8 @@ interface Point {
 
 // Global variables
 let isDrawing = false;
-let strokes: Array<Array<Point>> = [];
-let currentStroke: Array<Point> = [];
-let redoStack: Array<Array<Point>> = [];
+let strokes: Array<Stroke> = [];
+let redoStack: Array<Stroke> = [];
 
 const sketchpadTitle = document.createElement("h1");
 sketchpadTitle.innerHTML = APP_NAME;
@@ -23,11 +22,11 @@ sketchpadTitle.innerHTML = APP_NAME;
 app.append(sketchpadTitle);
 
 // Canvas setup
-const sketchCanvas = document.createElement("canvas");
-sketchCanvas.width = 256;
-sketchCanvas.height = 256;
+const canvas = document.createElement("canvas");
+canvas.width = 256;
+canvas.height = 256;
 
-const context = sketchCanvas.getContext("2d");
+const context = canvas.getContext("2d");
 
 if (context) {
   context.strokeStyle = "black";
@@ -36,27 +35,33 @@ if (context) {
   throw new Error("Context not found.");
 }
 
-app.append(sketchCanvas);
+app.append(canvas);
 
 // Enable drawing on canvas
 // Source: MDN web docs, https://developer.mozilla.org/en-US/docs/Web/API/Element/mousemove_event
-sketchCanvas.addEventListener("mousedown", (e) => {
+canvas.addEventListener("mousedown", (e) => {
   isDrawing = true;
-  strokes.push([getMousePosition(sketchCanvas, e)]);
+
+  const strokeStart = getMousePosition(canvas, e);
+  const newStroke = new Stroke(strokeStart.x, strokeStart.y);
+
+  strokes.push(newStroke);
   redoStack = [];
 });
 
-sketchCanvas.addEventListener("mousemove", (e) => {
+canvas.addEventListener("mousemove", (e) => {
   if (isDrawing) {
-    currentStroke = strokes[strokes.length - 1];
-    currentStroke.push(getMousePosition(sketchCanvas, e));
+    const currentStroke = strokes[strokes.length - 1];
+    const newPos = getMousePosition(canvas, e);
+
+    currentStroke.drag(newPos.x, newPos.y);
     dispatchDrawingEventChanged();
   }
 });
 
 function dispatchDrawingEventChanged(): void {
   const event = new Event("drawing-changed");
-  sketchCanvas.dispatchEvent(event);
+  canvas.dispatchEvent(event);
 }
 
 // Source: https://www.geeksforgeeks.org/how-to-get-the-coordinates-of-a-mouse-click-on-a-canvas-element/
@@ -71,33 +76,15 @@ window.addEventListener("mouseup", (e) => {
   isDrawing = false;
 });
 
-sketchCanvas.addEventListener("drawing-changed", () => {
-  context.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+canvas.addEventListener("drawing-changed", () => {
+  context.clearRect(0, 0, canvas.width, canvas.height);
   redrawCanvas();
 });
-
-function drawLine(
-  context: CanvasRenderingContext2D,
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number
-) {
-  context.beginPath();
-  context.moveTo(startX, startY);
-  context.lineTo(endX, endY);
-  context.stroke();
-  context.closePath();
-}
 
 function redrawCanvas(): void {
   if (context) {
     strokes.forEach((stroke) => {
-      // Draw stroke
-      stroke.forEach((point, i) => {
-        const nextPoint = stroke[i + 1] || point;
-        drawLine(context, point.x, point.y, nextPoint.x, nextPoint.y);
-      });
+      stroke.display(context);
     });
   }
 }
@@ -108,8 +95,9 @@ const clearButton = createButton("clear", clearCanvas);
 // Source: StackOverflow, https://stackoverflow.com/questions/2142535/how-to-clear-the-canvas-for-redrawing
 function clearCanvas(): void {
   if (context) {
-    context.clearRect(0, 0, sketchCanvas.width, sketchCanvas.height);
+    context.clearRect(0, 0, canvas.width, canvas.height);
     strokes = [];
+    redoStack = [];
   }
 }
 
@@ -140,5 +128,32 @@ function createButton(text: string, clickHandler: EventListener) {
   button.addEventListener("click", clickHandler);
 
   app.append(button);
+
   return button;
+}
+
+class Stroke {
+  private points: Array<Point> = [];
+
+  constructor(startX: number, startY: number) {
+    this.points.push({ x: startX, y: startY });
+  }
+
+  drag(x: number, y: number): void {
+    this.points.push({ x, y });
+  }
+
+  display(ctx: CanvasRenderingContext2D): void {
+    if (this.points.length <= 1) return;
+
+    ctx.beginPath();
+
+    const [{ x, y }, ...remainingPoints] = this.points;
+
+    for (const { x, y } of remainingPoints) {
+      ctx.lineTo(x, y);
+    }
+
+    ctx.stroke();
+  }
 }
