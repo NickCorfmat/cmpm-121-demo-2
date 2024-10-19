@@ -13,6 +13,7 @@ interface Point {
 
 // Global variables
 let isDrawing = false;
+let currentLineWidth: number = 1;
 let strokes: Array<Stroke> = [];
 let redoStack: Array<Stroke> = [];
 
@@ -30,7 +31,7 @@ const context = canvas.getContext("2d");
 
 if (context) {
   context.strokeStyle = "black";
-  context.lineWidth = 2;
+  context.lineWidth = currentLineWidth;
 } else {
   throw new Error("Context not found.");
 }
@@ -43,7 +44,7 @@ canvas.addEventListener("mousedown", (e) => {
   isDrawing = true;
 
   const strokeStart = getMousePosition(canvas, e);
-  const newStroke = new Stroke(strokeStart.x, strokeStart.y);
+  const newStroke = new Stroke(strokeStart.x, strokeStart.y, currentLineWidth);
 
   strokes.push(newStroke);
   redoStack = [];
@@ -58,19 +59,6 @@ canvas.addEventListener("mousemove", (e) => {
     dispatchDrawingEventChanged();
   }
 });
-
-function dispatchDrawingEventChanged(): void {
-  const event = new Event("drawing-changed");
-  canvas.dispatchEvent(event);
-}
-
-// Source: https://www.geeksforgeeks.org/how-to-get-the-coordinates-of-a-mouse-click-on-a-canvas-element/
-function getMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
-  const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  return { x, y };
-}
 
 window.addEventListener("mouseup", (e) => {
   isDrawing = false;
@@ -87,6 +75,19 @@ function redrawCanvas(): void {
       stroke.display(context);
     });
   }
+}
+
+function dispatchDrawingEventChanged(): void {
+  const event = new Event("drawing-changed");
+  canvas.dispatchEvent(event);
+}
+
+// Source: https://www.geeksforgeeks.org/how-to-get-the-coordinates-of-a-mouse-click-on-a-canvas-element/
+function getMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  return { x, y };
 }
 
 // Clear canvas button
@@ -122,21 +123,39 @@ function redoStroke(): void {
 }
 
 // Create a button with a click event listener
-function createButton(text: string, clickHandler: EventListener) {
+// Brace, 10/17/24, "How can I pass an argument to a function when I call it through a button's event listener?"
+function createButton(
+  text: string,
+  clickHandler: (arg?: any) => void,
+  arg?: any
+) {
   const button = document.createElement("button");
   button.innerHTML = text;
-  button.addEventListener("click", clickHandler);
+  button.addEventListener("click", () => clickHandler(arg));
 
   app.append(button);
 
   return button;
 }
 
+// Stroke weight buttons
+const thinButton = createButton("thin", setLineWidth, 1);
+const thickButton = createButton("thick", setLineWidth, 3);
+
+function setLineWidth(width: number): void {
+  if (context) {
+    context.lineWidth = width;
+    currentLineWidth = width;
+  }
+}
+
 class Stroke {
   private points: Array<Point> = [];
+  private lineWidth: number = 1;
 
-  constructor(startX: number, startY: number) {
+  constructor(startX: number, startY: number, width: number) {
     this.points.push({ x: startX, y: startY });
+    this.lineWidth = width;
   }
 
   drag(x: number, y: number): void {
@@ -144,16 +163,15 @@ class Stroke {
   }
 
   display(ctx: CanvasRenderingContext2D): void {
+    ctx.lineWidth = this.lineWidth;
+
     if (this.points.length <= 1) return;
 
     ctx.beginPath();
-
     const [{ x, y }, ...remainingPoints] = this.points;
-
     for (const { x, y } of remainingPoints) {
       ctx.lineTo(x, y);
     }
-
     ctx.stroke();
   }
 }
