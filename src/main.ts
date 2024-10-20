@@ -14,10 +14,10 @@ interface Point {
 // Global variables
 let isDrawing = false;
 let currentLineWidth: number = 1;
+let currentToolPreview: string = ".";
 let strokes: Array<Stroke> = [];
 let redoStack: Array<Stroke> = [];
 let toolPreview: ToolPreview | null = null;
-let currentSticker: string = "";
 
 const sketchpadTitle = document.createElement("h1");
 sketchpadTitle.innerHTML = APP_NAME;
@@ -55,10 +55,16 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
+  console.log(currentToolPreview);
   const { x: mouseX, y: mouseY } = getMousePosition(canvas, e);
 
   if (!isDrawing) {
-    toolPreview = new ToolPreview(mouseX, mouseY, currentLineWidth);
+    toolPreview = new ToolPreview(
+      mouseX,
+      mouseY,
+      currentLineWidth,
+      currentToolPreview
+    );
     dispatchToolMovedEvent();
   } else {
     const currentStroke = strokes[strokes.length - 1];
@@ -158,11 +164,13 @@ function setLineWidth(width: number): void {
   if (context) {
     context.lineWidth = width;
     currentLineWidth = width;
+    currentToolPreview = ".";
   }
 }
 
 function setSticker(sticker: string) {
-  currentSticker = sticker;
+  currentToolPreview = sticker;
+  currentLineWidth = 3;
   dispatchToolMovedEvent();
 }
 
@@ -207,16 +215,20 @@ class Stroke {
   }
 }
 
+class Sticker {}
+
 class ToolPreview {
-  constructor(private x: number, private y: number, private width: number) {}
+  constructor(
+    private x: number,
+    private y: number,
+    private width: number,
+    private icon: string
+  ) {}
 
   draw(ctx: CanvasRenderingContext2D): void {
-    ctx.lineWidth = this.width;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
-    ctx.fillStyle = "black";
-    ctx.fill();
-    ctx.strokeStyle = "black";
-    ctx.stroke();
+    ctx.font = `${this.width * 12}px monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.icon, this.x, this.y);
   }
 }
