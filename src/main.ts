@@ -17,6 +17,7 @@ let currentLineWidth: number = 1;
 let strokes: Array<Stroke> = [];
 let redoStack: Array<Stroke> = [];
 let toolPreview: ToolPreview | null = null;
+let currentSticker: string = "";
 
 const sketchpadTitle = document.createElement("h1");
 sketchpadTitle.innerHTML = APP_NAME;
@@ -113,8 +114,22 @@ function getMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
   return { x: mouseX, y: mouseY };
 }
 
-// Clear canvas button
-const clearButton = createButton("clear", clearCanvas);
+// Buttons
+
+const buttons = [
+  { text: "clear", handler: clearCanvas },
+  { text: "undo", handler: undoStroke },
+  { text: "redo", handler: redoStroke },
+  { text: "thin", handler: setLineWidth, arg: 1 },
+  { text: "thick", handler: setLineWidth, arg: 3 },
+  { text: "😀", handler: setSticker, arg: "😀" },
+  { text: "🎉", handler: setSticker, arg: "🎉" },
+  { text: "🌟", handler: setSticker, arg: "🌟" },
+];
+
+buttons.forEach((button) => {
+  createButton(button.text, button.handler, button.arg);
+});
 
 // Source: StackOverflow, https://stackoverflow.com/questions/2142535/how-to-clear-the-canvas-for-redrawing
 function clearCanvas(): void {
@@ -125,9 +140,6 @@ function clearCanvas(): void {
   }
 }
 
-// Undo stroke button
-const undoButton = createButton("undo", undoStroke);
-
 function undoStroke(): void {
   if (strokes.length > 0) {
     redoStack.push(strokes.pop()!); // Source: Brace, "How can remove the last item from one array and add it to another in one line?"
@@ -135,14 +147,23 @@ function undoStroke(): void {
   }
 }
 
-// Redo stroke button
-const redoButton = createButton("redo", redoStroke);
-
 function redoStroke(): void {
   if (redoStack.length > 0) {
     strokes.push(redoStack.pop()!);
     dispatchDrawingEventChanged();
   }
+}
+
+function setLineWidth(width: number): void {
+  if (context) {
+    context.lineWidth = width;
+    currentLineWidth = width;
+  }
+}
+
+function setSticker(sticker: string) {
+  currentSticker = sticker;
+  dispatchToolMovedEvent();
 }
 
 // Create a button with a click event listener
@@ -159,17 +180,6 @@ function createButton(
   app.append(button);
 
   return button;
-}
-
-// Stroke weight buttons
-const thinButton = createButton("thin", setLineWidth, 1);
-const thickButton = createButton("thick", setLineWidth, 3);
-
-function setLineWidth(width: number): void {
-  if (context) {
-    context.lineWidth = width;
-    currentLineWidth = width;
-  }
 }
 
 class Stroke {
