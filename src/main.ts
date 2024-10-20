@@ -16,6 +16,7 @@ let isDrawing = false;
 let currentLineWidth: number = 1;
 let strokes: Array<Stroke> = [];
 let redoStack: Array<Stroke> = [];
+let toolPreview: ToolPreview | null = null;
 
 const sketchpadTitle = document.createElement("h1");
 sketchpadTitle.innerHTML = APP_NAME;
@@ -26,6 +27,8 @@ app.append(sketchpadTitle);
 const canvas = document.createElement("canvas");
 canvas.width = 256;
 canvas.height = 256;
+
+canvas.style.cursor = "none";
 
 const context = canvas.getContext("2d");
 
@@ -43,30 +46,45 @@ app.append(canvas);
 canvas.addEventListener("mousedown", (e) => {
   isDrawing = true;
 
-  const strokeStart = getMousePosition(canvas, e);
-  const newStroke = new Stroke(strokeStart.x, strokeStart.y, currentLineWidth);
+  const { x: mouseX, y: mouseY } = getMousePosition(canvas, e);
+  const newStroke = new Stroke(mouseX, mouseY, currentLineWidth);
 
   strokes.push(newStroke);
   redoStack = [];
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (isDrawing) {
-    const currentStroke = strokes[strokes.length - 1];
-    const newPos = getMousePosition(canvas, e);
+  const { x: mouseX, y: mouseY } = getMousePosition(canvas, e);
 
-    currentStroke.drag(newPos.x, newPos.y);
-    dispatchDrawingEventChanged();
+  if (!isDrawing) {
+    toolPreview = new ToolPreview(mouseX, mouseY, currentLineWidth);
+    dispatchToolMovedEvent();
+  } else {
+    const currentStroke = strokes[strokes.length - 1];
+
+    if (currentStroke) {
+      currentStroke.drag(mouseX, mouseY);
+      dispatchDrawingEventChanged();
+    }
   }
 });
 
-window.addEventListener("mouseup", (e) => {
+window.addEventListener("mouseup", () => {
   isDrawing = false;
 });
 
 canvas.addEventListener("drawing-changed", () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
   redrawCanvas();
+});
+
+canvas.addEventListener("tool-moved", () => {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  redrawCanvas();
+
+  if (toolPreview) {
+    toolPreview.draw(context);
+  }
 });
 
 function redrawCanvas(): void {
@@ -82,12 +100,17 @@ function dispatchDrawingEventChanged(): void {
   canvas.dispatchEvent(event);
 }
 
+function dispatchToolMovedEvent(): void {
+  const event = new Event("tool-moved");
+  canvas.dispatchEvent(event);
+}
+
 // Source: https://www.geeksforgeeks.org/how-to-get-the-coordinates-of-a-mouse-click-on-a-canvas-element/
 function getMousePosition(canvas: HTMLCanvasElement, event: MouseEvent): Point {
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  return { x, y };
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+  return { x: mouseX, y: mouseY };
 }
 
 // Clear canvas button
@@ -151,11 +174,9 @@ function setLineWidth(width: number): void {
 
 class Stroke {
   private points: Array<Point> = [];
-  private lineWidth: number = 1;
 
-  constructor(startX: number, startY: number, width: number) {
+  constructor(startX: number, startY: number, private lineWidth: number) {
     this.points.push({ x: startX, y: startY });
-    this.lineWidth = width;
   }
 
   drag(x: number, y: number): void {
@@ -165,13 +186,27 @@ class Stroke {
   display(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = this.lineWidth;
 
-    if (this.points.length <= 1) return;
+    if (this.points.length < 2) return;
 
     ctx.beginPath();
     const [{ x, y }, ...remainingPoints] = this.points;
     for (const { x, y } of remainingPoints) {
       ctx.lineTo(x, y);
     }
+    ctx.stroke();
+  }
+}
+
+class ToolPreview {
+  constructor(private x: number, private y: number, private width: number) {}
+
+  draw(ctx: CanvasRenderingContext2D): void {
+    ctx.lineWidth = this.width;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
+    ctx.fillStyle = "black";
+    ctx.fill();
+    ctx.strokeStyle = "black";
     ctx.stroke();
   }
 }
