@@ -81,6 +81,8 @@ button {
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
+  margin: 15px 2px 0px 2px;
+  flex-wrap: wrap;
 }
 button:hover {
   border-color: #646cff;
@@ -88,6 +90,12 @@ button:hover {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
+}
+
+#tool-coontainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 @media (prefers-color-scheme: light) {

@@ -43,14 +43,19 @@ const availableStickers: string[] = stickers.INITIAL_STICKERS;
 // Initialization
 createAppTitle(APP_NAME);
 const canvas = document.createElement("canvas");
-const context = canvas.getContext("2d");
-
-if (!context) {
-  throw new Error("Canvas context not found.");
-}
+const context = retrieve2DContext(canvas);
 
 initializeCanvas(canvas);
 initializeContext(context);
+
+const toolContainer = createDivContainer("tool-container");
+
+function createDivContainer(id: string): HTMLElement {
+  const container = document.createElement("div");
+  container.id = id;
+  app.append(container);
+  return container;
+}
 
 function initializeCanvas(canvas: HTMLCanvasElement): void {
   canvas.width = CANVAS_WIDTH;
@@ -157,13 +162,13 @@ function continueDrawingDisplayable(mousePos: Point): void {
 }
 
 const strokeButtons = [
-  { text: "export", handler: exportCanvasToPNG },
-  { text: "clear", handler: clearCanvas },
-  { text: "undo", handler: undoStroke },
-  { text: "redo", handler: redoStroke },
-  { text: "thin", handler: setLineWidth, arg: STROKE_THIN },
-  { text: "thick", handler: setLineWidth, arg: STROKE_THICK },
-  { text: "custom sticker", handler: addCustomSticker },
+  { text: "Download", handler: exportCanvasToPNG },
+  { text: "Clear", handler: clearCanvas },
+  { text: "Undo", handler: undoStroke },
+  { text: "Redo", handler: redoStroke },
+  { text: "Thin Line", handler: setLineWidth, arg: STROKE_THIN },
+  { text: "Thick Line", handler: setLineWidth, arg: STROKE_THICK },
+  { text: "Add Sticker", handler: addCustomSticker },
 ];
 
 createButtons(strokeButtons);
@@ -218,7 +223,7 @@ function addCustomSticker(): void {
 // Source: StackOverflow, https://stackoverflow.com/questions/4405336/how-to-copy-contents-of-one-canvas-to-another-canvas-locally
 function exportCanvasToPNG(): void {
   const exportCanvas = createExportCanvas();
-  const exportContext = getExportContext(exportCanvas);
+  const exportContext = retrieve2DContext(exportCanvas);
 
   setupExportContext(exportContext);
   redrawCanvas(exportContext);
@@ -232,10 +237,12 @@ function createExportCanvas(): HTMLCanvasElement {
   return exportCanvas;
 }
 
-function getExportContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+function retrieve2DContext(
+  canvas: HTMLCanvasElement
+): CanvasRenderingContext2D {
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    throw new Error("Export context not found.");
+    throw new Error("Canvas context not found.");
   }
   return ctx;
 }
@@ -262,7 +269,7 @@ function createButton(
   const button = document.createElement("button");
   button.innerHTML = text;
   button.addEventListener("click", () => clickHandler(arg));
-  app.append(button);
+  toolContainer.append(button);
 }
 
 function createButtons(buttons: Button[]): void {
