@@ -4,6 +4,8 @@ import stickers from "./stickers.json";
 const APP_NAME = "Doodle Pad";
 const CANVAS_WIDTH = 256;
 const CANVAS_HEIGHT = 256;
+const EXPORT_CANVAS_WIDTH = 1024;
+const EXPORT_CANVAS_HEIGHT = 1024;
 const STROKE_THIN = 1;
 const STROKE_THICK = 3;
 const STICKER_FONT_SIZE = 32;
@@ -93,12 +95,12 @@ function onMouseUp(event: MouseEvent): void {
 
 canvas.addEventListener("drawing-changed", () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
-  redrawCanvas();
+  redrawCanvas(context);
 });
 
 canvas.addEventListener("tool-moved", () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
-  redrawCanvas();
+  redrawCanvas(context);
   toolPreview?.draw(context);
 });
 
@@ -114,10 +116,10 @@ function drawNewDisplayableAt(mousePos: Point): void {
   displayables.push(displayable);
 }
 
-function redrawCanvas(): void {
-  if (context) {
+function redrawCanvas(ctx: CanvasRenderingContext2D): void {
+  if (ctx) {
     displayables.forEach((displayable) => {
-      displayable.display(context);
+      displayable.display(ctx);
     });
   }
 }
@@ -155,6 +157,7 @@ function continueDrawingDisplayable(mousePos: Point): void {
 }
 
 const strokeButtons = [
+  { text: "export", handler: exportCanvasToPNG },
   { text: "clear", handler: clearCanvas },
   { text: "undo", handler: undoStroke },
   { text: "redo", handler: redoStroke },
@@ -210,6 +213,44 @@ function addCustomSticker(): void {
     availableStickers.push(customSticker);
     createButton(customSticker, setSticker, customSticker);
   }
+}
+
+// Source: StackOverflow, https://stackoverflow.com/questions/4405336/how-to-copy-contents-of-one-canvas-to-another-canvas-locally
+function exportCanvasToPNG(): void {
+  const exportCanvas = createExportCanvas();
+  const exportContext = getExportContext(exportCanvas);
+
+  setupExportContext(exportContext);
+  redrawCanvas(exportContext);
+  downloadCanvas(exportCanvas);
+}
+
+function createExportCanvas(): HTMLCanvasElement {
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = EXPORT_CANVAS_WIDTH;
+  exportCanvas.height = EXPORT_CANVAS_HEIGHT;
+  return exportCanvas;
+}
+
+function getExportContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Export context not found.");
+  }
+  return ctx;
+}
+
+function setupExportContext(ctx: CanvasRenderingContext2D): void {
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, EXPORT_CANVAS_WIDTH, EXPORT_CANVAS_HEIGHT);
+  ctx.scale(4, 4);
+}
+
+function downloadCanvas(canvas: HTMLCanvasElement): void {
+  const anchor = document.createElement("a");
+  anchor.href = canvas.toDataURL("image/png");
+  anchor.download = "sketchpad.png";
+  anchor.click();
 }
 
 // Brace, 10/17/24, "How can I pass an argument to a function when I call it through a button's event listener?"
@@ -268,6 +309,7 @@ class Sticker implements Displayable {
 
   display(ctx: CanvasRenderingContext2D): void {
     ctx.font = `${STICKER_FONT_SIZE}px monospace`;
+    ctx.fillStyle = "black";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(this.sticker, this.x, this.y);
