@@ -37,6 +37,7 @@ h1 {
 }
 
 canvas {
+  cursor: none;
   border: 1px solid black;
   border-radius: 10px;
   box-shadow: 0 0 4px rgb(56, 62, 92);

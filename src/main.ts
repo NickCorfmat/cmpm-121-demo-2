@@ -1,17 +1,25 @@
 import "./style.css";
+import stickers from "./stickers.json";
 
 const APP_NAME = "Doodle Pad";
-const app = document.querySelector<HTMLDivElement>("#app")!;
+const CANVAS_WIDTH = 256;
+const CANVAS_HEIGHT = 256;
+const STROKE_THIN = 1;
+const STROKE_THICK = 3;
+const STICKER_FONT_SIZE = 32;
+const TOOL_ICON_SCALE_FACTOR = 12;
 
+const app = document.querySelector<HTMLDivElement>("#app")!;
 document.title = APP_NAME;
 
+// Interfaces
 interface Point {
   x: number;
   y: number;
 }
 
 interface Displayable {
-  drag(x: number, y: number);
+  drag(x: number, y: number): void;
   display(ctx: CanvasRenderingContext2D): void;
 }
 
@@ -21,56 +29,67 @@ interface Button {
   arg?: any;
 }
 
-// Global variables
+// Global Variables
 let isDrawing = false;
-let currentLineWidth: number = 1;
+let currentLineWidth: number = STROKE_THIN;
 let currentToolPreview: string = ".";
 let displayables: Array<Displayable> = [];
 let redoStack: Array<Displayable> = [];
 let toolPreview: ToolPreview | null = null;
+const availableStickers: string[] = stickers.INITIAL_STICKERS;
 
-// Create title
-const title = document.createElement("h1");
-title.innerHTML = APP_NAME;
-app.append(title);
-
-// Canvas setup
+// Initialization
+createAppTitle(APP_NAME);
 const canvas = document.createElement("canvas");
-canvas.width = 256;
-canvas.height = 256;
-canvas.style.cursor = "none";
-
 const context = canvas.getContext("2d");
-if (!context) throw new Error("Canvas context not found.");
 
-context.strokeStyle = "black";
-context.lineWidth = currentLineWidth;
-app.append(canvas);
+if (!context) {
+  throw new Error("Canvas context not found.");
+}
 
-// Source: MDN web docs, https://developer.mozilla.org/en-US/docs/Web/API/Element/mousemove_event
-canvas.addEventListener("mousedown", (event) => {
+initializeCanvas(canvas);
+initializeContext(context);
+
+function initializeCanvas(canvas: HTMLCanvasElement): void {
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+  app.append(canvas);
+}
+
+function initializeContext(ctx: CanvasRenderingContext2D): void {
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = currentLineWidth;
+}
+
+function createAppTitle(name: string): void {
+  const title = document.createElement("h1");
+  title.innerHTML = name;
+  app.append(title);
+}
+
+canvas.addEventListener("mousedown", onMouseDown);
+canvas.addEventListener("mousemove", onMouseMove);
+window.addEventListener("mouseup", onMouseUp);
+
+function onMouseDown(event: MouseEvent): void {
   const mousePos = getMousePosition(canvas, event);
-  let displayable: Displayable;
-
-  if (currentToolPreview === ".") {
-    displayable = new Stroke(mousePos.x, mousePos.y, currentLineWidth);
-  } else {
-    displayable = new Sticker(mousePos.x, mousePos.y, currentToolPreview);
-  }
-
-  displayables.push(displayable);
+  drawNewDisplayableAt(mousePos);
   redoStack = [];
   isDrawing = true;
-});
+}
 
-canvas.addEventListener("mousemove", (event) => {
+function onMouseMove(event: MouseEvent): void {
   const mousePos = getMousePosition(canvas, event);
-  isDrawing ? drawDisplayable(mousePos) : updateToolPreview(mousePos);
-});
+  if (isDrawing) {
+    continueDrawingDisplayable(mousePos);
+  } else {
+    updateToolPreview(mousePos);
+  }
+}
 
-window.addEventListener("mouseup", () => {
+function onMouseUp(event: MouseEvent): void {
   isDrawing = false;
-});
+}
 
 canvas.addEventListener("drawing-changed", () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -83,10 +102,22 @@ canvas.addEventListener("tool-moved", () => {
   toolPreview?.draw(context);
 });
 
+function drawNewDisplayableAt(mousePos: Point): void {
+  let displayable: Displayable;
+
+  if (currentToolPreview === ".") {
+    displayable = new Stroke(mousePos.x, mousePos.y, currentLineWidth);
+  } else {
+    displayable = new Sticker(mousePos.x, mousePos.y, currentToolPreview);
+  }
+
+  displayables.push(displayable);
+}
+
 function redrawCanvas(): void {
   if (context) {
-    displayables.forEach((stroke) => {
-      stroke.display(context);
+    displayables.forEach((displayable) => {
+      displayable.display(context);
     });
   }
 }
@@ -114,7 +145,7 @@ function updateToolPreview(mousePos: Point): void {
   dispatchEvent("tool-moved");
 }
 
-function drawDisplayable(mousePos: Point): void {
+function continueDrawingDisplayable(mousePos: Point): void {
   const drawable = displayables.at(-1);
 
   if (drawable) {
@@ -127,14 +158,13 @@ const strokeButtons = [
   { text: "clear", handler: clearCanvas },
   { text: "undo", handler: undoStroke },
   { text: "redo", handler: redoStroke },
-  { text: "thin", handler: setLineWidth, arg: 1 },
-  { text: "thick", handler: setLineWidth, arg: 3 },
-  { text: "😀", handler: setSticker, arg: "😀" },
-  { text: "🎉", handler: setSticker, arg: "🎉" },
-  { text: "🌟", handler: setSticker, arg: "🌟" },
+  { text: "thin", handler: setLineWidth, arg: STROKE_THIN },
+  { text: "thick", handler: setLineWidth, arg: STROKE_THICK },
+  { text: "custom sticker", handler: addCustomSticker },
 ];
 
 createButtons(strokeButtons);
+createStickerButtons(availableStickers);
 
 // Source: StackOverflow, https://stackoverflow.com/questions/2142535/how-to-clear-the-canvas-for-redrawing
 function clearCanvas(): void {
@@ -169,8 +199,17 @@ function setLineWidth(width: number): void {
 
 function setSticker(sticker: string): void {
   currentToolPreview = sticker;
-  currentLineWidth = 3;
+  currentLineWidth = STROKE_THICK;
   dispatchEvent("tool-moved");
+}
+
+function addCustomSticker(): void {
+  const customSticker = prompt("Insert custom sticker", "");
+
+  if (customSticker) {
+    availableStickers.push(customSticker);
+    createButton(customSticker, setSticker, customSticker);
+  }
 }
 
 // Brace, 10/17/24, "How can I pass an argument to a function when I call it through a button's event listener?"
@@ -186,8 +225,14 @@ function createButton(
 }
 
 function createButtons(buttons: Button[]): void {
-  buttons.forEach((button) => {
-    createButton(button.text, button.handler, button.arg);
+  buttons.forEach(({ text, handler, arg }) => {
+    createButton(text, handler, arg);
+  });
+}
+
+function createStickerButtons(stickers: string[]) {
+  stickers.forEach((sticker) => {
+    createButton(sticker, setSticker, sticker);
   });
 }
 
@@ -204,7 +249,7 @@ class Stroke implements Displayable {
 
   display(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = this.lineWidth;
-    if (this.points.length < 2) return;
+    if (this.points.length <= 1) return;
 
     ctx.beginPath();
     const [{ x, y }, ...remainingPoints] = this.points;
@@ -222,7 +267,7 @@ class Sticker implements Displayable {
   }
 
   display(ctx: CanvasRenderingContext2D): void {
-    ctx.font = "32px monospace";
+    ctx.font = `${STICKER_FONT_SIZE}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(this.sticker, this.x, this.y);
@@ -238,7 +283,7 @@ class ToolPreview {
   ) {}
 
   draw(ctx: CanvasRenderingContext2D): void {
-    ctx.font = `${this.width * 12}px monospace`;
+    ctx.font = `${this.width * TOOL_ICON_SCALE_FACTOR}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(this.icon, this.x, this.y);
