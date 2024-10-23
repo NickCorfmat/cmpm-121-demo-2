@@ -1,13 +1,25 @@
 import "./style.css";
-import stickers from "./stickers.json";
+import defaultStickers from "./stickers.json";
 
 const APP_NAME = "Doodle Pad";
-const CANVAS_WIDTH = 256;
-const CANVAS_HEIGHT = 256;
-const EXPORT_CANVAS_WIDTH = 1024;
-const EXPORT_CANVAS_HEIGHT = 1024;
+const app = document.querySelector<HTMLDivElement>("#app")!;
+
+document.title = APP_NAME;
+
+const titleElement = document.createElement("h1");
+titleElement.innerHTML = APP_NAME;
+app.appendChild(titleElement);
+
+const canvas = document.createElement("canvas");
+canvas.width = 256;
+canvas.height = 256;
+app.appendChild(canvas);
+
+// Constants
 const STROKE_THIN = 2;
 const STROKE_THICK = 4;
+const EXPORT_CANVAS_WIDTH = 1024;
+const EXPORT_CANVAS_HEIGHT = 1024;
 const STICKER_FONT_SIZE = 32;
 const TOOL_ICON_SCALE_FACTOR = 8;
 
@@ -19,71 +31,20 @@ let currentToolPreview: string = ".";
 let displayables: Array<Displayable> = [];
 let redoStack: Array<Displayable> = [];
 let toolPreview: ToolPreview | null = null;
-const availableStickers: string[] = stickers.INITIAL_STICKERS;
 
-const app = document.querySelector<HTMLDivElement>("#app")!;
-document.title = APP_NAME;
+const stickers: string[] = defaultStickers.STICKERS;
 
-// Interfaces
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Displayable {
-  drag(x: number, y: number): void;
-  display(ctx: CanvasRenderingContext2D): void;
-}
-
-interface Button {
-  text: string;
-  handler: (arg?: any) => void;
-  arg?: any;
-}
-
-// Initialization
-createAppTitle(APP_NAME);
-
-const canvas = document.createElement("canvas");
-const context = retrieve2DContext(canvas);
-
-initializeCanvas(canvas);
-initializeContext(context);
-
+// Document Setup
 const toolContainer = createDivContainer("tool-container");
-
-// Source: Brace, "How can i create an HTML color picker in typescript?"
-document.addEventListener("DOMContentLoaded", createColorPicker);
-
-createSlider();
-
-function createColorPicker(): void {
-  const colorPickerContainer = document.createElement("div");
-  const colorPicker = document.createElement("input");
-  const colorPickerLabel = document.createElement("span");
-  colorPickerLabel.classList.add("color-picker");
-  colorPickerLabel.innerHTML = "Color Picker";
-
-  colorPicker.type = "color";
-  colorPicker.value = "#000000";
-
-  colorPickerContainer.append(colorPicker, colorPickerLabel);
-  app.append(colorPickerContainer);
-
-  colorPicker.addEventListener("input", updateStrokeColor);
-}
-
-function updateStrokeColor(event: Event): void {
-  const target = event.target as HTMLInputElement;
-  strokeColor = target.value;
-}
 
 function createDivContainer(id: string): HTMLElement {
   const container = document.createElement("div");
   container.id = id;
-  app.append(container);
+  app.appendChild(container);
   return container;
 }
+
+createSlider();
 
 function createSlider(): void {
   const sliderContainer = document.createElement("div");
@@ -98,63 +59,64 @@ function createSlider(): void {
   slider.value = "0";
 
   sliderContainer.append(slider, sliderLabel);
-  app.append(sliderContainer);
+  app.appendChild(sliderContainer);
 
   slider.addEventListener("input", (event) => {
-    updateSliderValue(event);
+    const target = event.target as HTMLInputElement;
+    const sliderValue = parseInt(target.value);
+
+    stickerRotation = sliderValue;
+    strokeColor = `hsl(${sliderValue}, 100%, 50%)`;
+    updateToolPreview({ x: canvas.width / 2, y: canvas.height / 2 });
     sliderLabel.innerHTML = `Hue/Rotation: ${slider.value}`;
   });
 }
 
-function updateSliderValue(event: Event): void {
-  const target = event.target as HTMLInputElement;
-  const sliderValue = parseInt(target.value);
+createColorPicker();
 
-  stickerRotation = sliderValue;
-  strokeColor = `hsl(${sliderValue}, 100%, 50%)`;
-  updateToolPreview({ x: canvas.width / 2, y: canvas.height / 2 });
+// Source: Brace, "How can i create an HTML color picker in typescript?"
+function createColorPicker(): void {
+  const colorPickerContainer = document.createElement("div");
+  const colorPicker = document.createElement("input");
+  const colorPickerLabel = document.createElement("span");
+  colorPickerLabel.classList.add("color-picker");
+  colorPickerLabel.innerHTML = "Color Picker";
+
+  colorPicker.type = "color";
+  colorPicker.value = "#000000";
+
+  colorPickerContainer.append(colorPicker, colorPickerLabel);
+  app.appendChild(colorPickerContainer);
+
+  colorPicker.addEventListener("input", (event) => {
+    strokeColor = (event.target as HTMLInputElement).value;
+  });
 }
 
-function initializeCanvas(canvas: HTMLCanvasElement): void {
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = CANVAS_HEIGHT;
-  app.append(canvas);
-}
+const context = retrieve2DContext(canvas);
+context.strokeStyle = strokeColor;
+context.lineWidth = currentLineWidth;
 
-function initializeContext(ctx: CanvasRenderingContext2D): void {
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = currentLineWidth;
-}
-
-function createAppTitle(name: string): void {
-  const title = document.createElement("h1");
-  title.innerHTML = name;
-  app.append(title);
-}
-
-canvas.addEventListener("mousedown", onMouseDown);
-canvas.addEventListener("mousemove", onMouseMove);
-window.addEventListener("mouseup", onMouseUp);
-
-function onMouseDown(event: MouseEvent): void {
+// Event Listeners
+canvas.addEventListener("mousedown", (event) => {
   const mousePos = getMousePosition(canvas, event);
   drawNewDisplayableAt(mousePos);
   redoStack = [];
   isDrawing = true;
-}
+});
 
-function onMouseMove(event: MouseEvent): void {
+canvas.addEventListener("mousemove", (event) => {
   const mousePos = getMousePosition(canvas, event);
   if (isDrawing) {
     continueDrawingDisplayable(mousePos);
   } else {
     updateToolPreview(mousePos);
   }
-}
+});
 
-function onMouseUp(event: MouseEvent): void {
+window.addEventListener("mouseup", (event) => {
   isDrawing = false;
-}
+});
 
 canvas.addEventListener("drawing-changed", () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -167,6 +129,7 @@ canvas.addEventListener("tool-moved", () => {
   toolPreview?.draw(context);
 });
 
+// Tool Functions
 function drawNewDisplayableAt(mousePos: Point): void {
   let displayable: Displayable;
 
@@ -231,7 +194,8 @@ function continueDrawingDisplayable(mousePos: Point): void {
   }
 }
 
-const strokeButtons = [
+// Buttons
+const defaultButtons = [
   { text: "Download", handler: exportCanvasToPNG },
   { text: "Clear", handler: clearCanvas },
   { text: "Undo", handler: undoStroke },
@@ -241,10 +205,36 @@ const strokeButtons = [
   { text: "Add Sticker", handler: addCustomSticker },
 ];
 
-createButtons(strokeButtons);
-createStickerButtons(availableStickers);
+createButtonsFrom(defaultButtons);
+createStickerButtons(stickers);
+
+// Button handlers
 
 // Source: StackOverflow, https://stackoverflow.com/questions/2142535/how-to-clear-the-canvas-for-redrawing
+// Brace, 10/17/24, "How can I pass an argument to a function when I call it through a button's event listener?"
+function createButton(
+  text: string,
+  clickHandler: (arg?: any) => void,
+  arg?: any
+): void {
+  const button = document.createElement("button");
+  button.innerHTML = text;
+  button.addEventListener("click", () => clickHandler(arg));
+  toolContainer.appendChild(button);
+}
+
+function createButtonsFrom(buttons: Button[]): void {
+  buttons.forEach(({ text, handler, arg }) => {
+    createButton(text, handler, arg);
+  });
+}
+
+function createStickerButtons(stickers: string[]) {
+  stickers.forEach((sticker) => {
+    createButton(sticker, setSticker, sticker);
+  });
+}
+
 function clearCanvas(): void {
   if (context) {
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -281,15 +271,11 @@ function setSticker(sticker: string): void {
   dispatchEvent("tool-moved");
 }
 
-function getRandomRotation(): number {
-  return Math.random() * 360;
-}
-
 function addCustomSticker(): void {
   const customSticker = prompt("Insert custom sticker", "");
 
   if (customSticker) {
-    availableStickers.push(customSticker);
+    stickers.push(customSticker);
     createButton(customSticker, setSticker, customSticker);
   }
 }
@@ -334,38 +320,32 @@ function downloadCanvas(canvas: HTMLCanvasElement): void {
   anchor.click();
 }
 
-// Brace, 10/17/24, "How can I pass an argument to a function when I call it through a button's event listener?"
-function createButton(
-  text: string,
-  clickHandler: (arg?: any) => void,
-  arg?: any
-): void {
-  const button = document.createElement("button");
-  button.innerHTML = text;
-  button.addEventListener("click", () => clickHandler(arg));
-  toolContainer.append(button);
+// Interfaces
+interface Point {
+  x: number;
+  y: number;
 }
 
-function createButtons(buttons: Button[]): void {
-  buttons.forEach(({ text, handler, arg }) => {
-    createButton(text, handler, arg);
-  });
+interface Displayable {
+  drag(x: number, y: number): void;
+  display(ctx: CanvasRenderingContext2D): void;
 }
 
-function createStickerButtons(stickers: string[]) {
-  stickers.forEach((sticker) => {
-    createButton(sticker, setSticker, sticker);
-  });
+interface Button {
+  text: string;
+  handler: (arg?: any) => void;
+  arg?: any;
 }
 
+// Commands
 class Stroke implements Displayable {
   private points: Array<Point> = [];
 
   constructor(
     x: number,
     y: number,
-    private lineWidth: number,
-    private strokeColor: string
+    private thickness: number,
+    private color: string
   ) {
     this.points.push({ x, y });
   }
@@ -375,15 +355,18 @@ class Stroke implements Displayable {
   }
 
   display(ctx: CanvasRenderingContext2D): void {
-    ctx.lineWidth = this.lineWidth;
-    ctx.strokeStyle = this.strokeColor;
+    if (this.points.length > 1) {
+      ctx.lineWidth = this.thickness;
+      ctx.strokeStyle = this.color;
 
-    if (this.points.length <= 1) return;
+      ctx.beginPath();
 
-    ctx.beginPath();
-    const [{ x, y }, ...remainingPoints] = this.points;
-    remainingPoints.forEach(({ x, y }) => ctx.lineTo(x, y));
-    ctx.stroke();
+      const [{ x, y }, ...remainingPoints] = this.points;
+      remainingPoints.forEach(({ x, y }) => ctx.lineTo(x, y));
+
+      ctx.stroke();
+      ctx.closePath();
+    }
   }
 }
 
@@ -392,7 +375,7 @@ class Sticker implements Displayable {
     private x: number,
     private y: number,
     private sticker: string,
-    private strokeColor: string,
+    private color: string,
     private rotation: number
   ) {}
 
@@ -408,7 +391,7 @@ class Sticker implements Displayable {
     ctx.translate(-this.x, -this.y);
 
     ctx.font = `${STICKER_FONT_SIZE}px monospace`;
-    ctx.fillStyle = this.strokeColor;
+    ctx.fillStyle = this.color;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
