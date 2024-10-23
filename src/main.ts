@@ -6,10 +6,20 @@ const CANVAS_WIDTH = 256;
 const CANVAS_HEIGHT = 256;
 const EXPORT_CANVAS_WIDTH = 1024;
 const EXPORT_CANVAS_HEIGHT = 1024;
-const STROKE_THIN = 1;
-const STROKE_THICK = 3;
+const STROKE_THIN = 2;
+const STROKE_THICK = 4;
 const STICKER_FONT_SIZE = 32;
-const TOOL_ICON_SCALE_FACTOR = 12;
+const TOOL_ICON_SCALE_FACTOR = 8;
+
+let isDrawing: boolean = false;
+let currentLineWidth: number = STROKE_THIN;
+let strokeColor: string = "#000000";
+let stickerRotation: number = 0;
+let currentToolPreview: string = ".";
+let displayables: Array<Displayable> = [];
+let redoStack: Array<Displayable> = [];
+let toolPreview: ToolPreview | null = null;
+const availableStickers: string[] = stickers.INITIAL_STICKERS;
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 document.title = APP_NAME;
@@ -31,16 +41,6 @@ interface Button {
   arg?: any;
 }
 
-// Global Variables
-let isDrawing = false;
-let currentLineWidth: number = STROKE_THIN;
-let strokeColor = "#000000";
-let currentToolPreview: string = ".";
-let displayables: Array<Displayable> = [];
-let redoStack: Array<Displayable> = [];
-let toolPreview: ToolPreview | null = null;
-const availableStickers: string[] = stickers.INITIAL_STICKERS;
-
 // Initialization
 createAppTitle(APP_NAME);
 
@@ -55,11 +55,20 @@ const toolContainer = createDivContainer("tool-container");
 // Source: Brace, "How can i create an HTML color picker in typescript?"
 document.addEventListener("DOMContentLoaded", createColorPicker);
 
+createSlider();
+
 function createColorPicker(): void {
+  const colorPickerContainer = document.createElement("div");
   const colorPicker = document.createElement("input");
+  const colorPickerLabel = document.createElement("span");
+  colorPickerLabel.classList.add("color-picker");
+  colorPickerLabel.innerHTML = "Color Picker";
+
   colorPicker.type = "color";
   colorPicker.value = "#000000";
-  app.append(colorPicker);
+
+  colorPickerContainer.append(colorPicker, colorPickerLabel);
+  app.append(colorPickerContainer);
 
   colorPicker.addEventListener("input", updateStrokeColor);
 }
@@ -74,6 +83,36 @@ function createDivContainer(id: string): HTMLElement {
   container.id = id;
   app.append(container);
   return container;
+}
+
+function createSlider(): void {
+  const sliderContainer = document.createElement("div");
+  const slider = document.createElement("input");
+  const sliderLabel = document.createElement("span");
+  sliderLabel.classList.add("slider");
+  sliderLabel.innerHTML = `Hue/Rotation: ${slider.value}`;
+
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = "360";
+  slider.value = "0";
+
+  sliderContainer.append(slider, sliderLabel);
+  app.append(sliderContainer);
+
+  slider.addEventListener("input", (event) => {
+    updateSliderValue(event);
+    sliderLabel.innerHTML = `Hue/Rotation: ${slider.value}`;
+  });
+}
+
+function updateSliderValue(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const sliderValue = parseInt(target.value);
+
+  stickerRotation = sliderValue;
+  strokeColor = `hsl(${sliderValue}, 100%, 50%)`;
+  updateToolPreview({ x: canvas.width / 2, y: canvas.height / 2 });
 }
 
 function initializeCanvas(canvas: HTMLCanvasElement): void {
@@ -132,9 +171,20 @@ function drawNewDisplayableAt(mousePos: Point): void {
   let displayable: Displayable;
 
   if (currentToolPreview === ".") {
-    displayable = new Stroke(mousePos.x, mousePos.y, currentLineWidth, strokeColor);
+    displayable = new Stroke(
+      mousePos.x,
+      mousePos.y,
+      currentLineWidth,
+      strokeColor
+    );
   } else {
-    displayable = new Sticker(mousePos.x, mousePos.y, currentToolPreview);
+    displayable = new Sticker(
+      mousePos.x,
+      mousePos.y,
+      currentToolPreview,
+      strokeColor,
+      stickerRotation
+    );
   }
 
   displayables.push(displayable);
@@ -166,7 +216,8 @@ function updateToolPreview(mousePos: Point): void {
     mousePos.x,
     mousePos.y,
     currentLineWidth,
-    currentToolPreview
+    currentToolPreview,
+    stickerRotation
   );
   dispatchEvent("tool-moved");
 }
@@ -228,6 +279,10 @@ function setSticker(sticker: string): void {
   currentToolPreview = sticker;
   currentLineWidth = STROKE_THICK;
   dispatchEvent("tool-moved");
+}
+
+function getRandomRotation(): number {
+  return Math.random() * 360;
 }
 
 function addCustomSticker(): void {
@@ -306,7 +361,12 @@ function createStickerButtons(stickers: string[]) {
 class Stroke implements Displayable {
   private points: Array<Point> = [];
 
-  constructor(x: number, y: number, private lineWidth: number, private strokeColor: string) {
+  constructor(
+    x: number,
+    y: number,
+    private lineWidth: number,
+    private strokeColor: string
+  ) {
     this.points.push({ x, y });
   }
 
@@ -328,7 +388,13 @@ class Stroke implements Displayable {
 }
 
 class Sticker implements Displayable {
-  constructor(private x: number, private y: number, private sticker: string) {}
+  constructor(
+    private x: number,
+    private y: number,
+    private sticker: string,
+    private strokeColor: string,
+    private rotation: number
+  ) {}
 
   drag(newX: number, newY: number): void {
     this.x = newX;
@@ -336,11 +402,18 @@ class Sticker implements Displayable {
   }
 
   display(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate((this.rotation * Math.PI) / 180);
+    ctx.translate(-this.x, -this.y);
+
     ctx.font = `${STICKER_FONT_SIZE}px monospace`;
-    ctx.fillStyle = strokeColor;
+    ctx.fillStyle = this.strokeColor;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+
     ctx.fillText(this.sticker, this.x, this.y);
+    ctx.restore();
   }
 }
 
@@ -349,13 +422,21 @@ class ToolPreview {
     private x: number,
     private y: number,
     private width: number,
-    private icon: string
+    private icon: string,
+    private rotation: number
   ) {}
 
   draw(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate((this.rotation * Math.PI) / 180);
+
     ctx.font = `${this.width * TOOL_ICON_SCALE_FACTOR}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(this.icon, this.x, this.y);
+    ctx.fillStyle = strokeColor;
+
+    ctx.fillText(this.icon, 0, 0);
+    ctx.restore();
   }
 }

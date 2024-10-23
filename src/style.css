@@ -98,6 +98,22 @@ button:focus-visible {
   align-items: center;
 }
 
+input {
+  margin-right: 10px;
+}
+
+.slider {
+  color: black;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.color-picker {
+  color: black;
+  font-weight: 500;
+  font-size: 20px;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
