@@ -34,6 +34,7 @@ interface Button {
 // Global Variables
 let isDrawing = false;
 let currentLineWidth: number = STROKE_THIN;
+let strokeColor = "#000000";
 let currentToolPreview: string = ".";
 let displayables: Array<Displayable> = [];
 let redoStack: Array<Displayable> = [];
@@ -42,6 +43,7 @@ const availableStickers: string[] = stickers.INITIAL_STICKERS;
 
 // Initialization
 createAppTitle(APP_NAME);
+
 const canvas = document.createElement("canvas");
 const context = retrieve2DContext(canvas);
 
@@ -49,6 +51,23 @@ initializeCanvas(canvas);
 initializeContext(context);
 
 const toolContainer = createDivContainer("tool-container");
+
+// Source: Brace, "How can i create an HTML color picker in typescript?"
+document.addEventListener("DOMContentLoaded", createColorPicker);
+
+function createColorPicker(): void {
+  const colorPicker = document.createElement("input");
+  colorPicker.type = "color";
+  colorPicker.value = "#000000";
+  app.append(colorPicker);
+
+  colorPicker.addEventListener("input", updateStrokeColor);
+}
+
+function updateStrokeColor(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  strokeColor = target.value;
+}
 
 function createDivContainer(id: string): HTMLElement {
   const container = document.createElement("div");
@@ -64,7 +83,7 @@ function initializeCanvas(canvas: HTMLCanvasElement): void {
 }
 
 function initializeContext(ctx: CanvasRenderingContext2D): void {
-  ctx.strokeStyle = "black";
+  ctx.strokeStyle = strokeColor;
   ctx.lineWidth = currentLineWidth;
 }
 
@@ -113,7 +132,7 @@ function drawNewDisplayableAt(mousePos: Point): void {
   let displayable: Displayable;
 
   if (currentToolPreview === ".") {
-    displayable = new Stroke(mousePos.x, mousePos.y, currentLineWidth);
+    displayable = new Stroke(mousePos.x, mousePos.y, currentLineWidth, strokeColor);
   } else {
     displayable = new Sticker(mousePos.x, mousePos.y, currentToolPreview);
   }
@@ -287,7 +306,7 @@ function createStickerButtons(stickers: string[]) {
 class Stroke implements Displayable {
   private points: Array<Point> = [];
 
-  constructor(x: number, y: number, private lineWidth: number) {
+  constructor(x: number, y: number, private lineWidth: number, private strokeColor: string) {
     this.points.push({ x, y });
   }
 
@@ -297,6 +316,8 @@ class Stroke implements Displayable {
 
   display(ctx: CanvasRenderingContext2D): void {
     ctx.lineWidth = this.lineWidth;
+    ctx.strokeStyle = this.strokeColor;
+
     if (this.points.length <= 1) return;
 
     ctx.beginPath();
@@ -316,7 +337,7 @@ class Sticker implements Displayable {
 
   display(ctx: CanvasRenderingContext2D): void {
     ctx.font = `${STICKER_FONT_SIZE}px monospace`;
-    ctx.fillStyle = "black";
+    ctx.fillStyle = strokeColor;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(this.sticker, this.x, this.y);
