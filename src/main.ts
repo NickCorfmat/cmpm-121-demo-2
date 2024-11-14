@@ -97,37 +97,44 @@ const context = retrieve2DContext(canvas);
 context.strokeStyle = strokeColor;
 context.lineWidth = currentLineWidth;
 
-// Event Listeners
-canvas.addEventListener("mousedown", (event) => {
+// Extracted event listener functions
+function onMouseDown(event: MouseEvent): void {
   const mousePos = getMousePosition(canvas, event);
   drawNewDisplayableAt(mousePos);
   redoStack = [];
   isDrawing = true;
-});
+}
 
-canvas.addEventListener("mousemove", (event) => {
+function onMouseMove(event: MouseEvent): void {
   const mousePos = getMousePosition(canvas, event);
   if (isDrawing) {
     continueDrawingDisplayable(mousePos);
   } else {
     updateToolPreview(mousePos);
   }
-});
+}
 
-window.addEventListener("mouseup", (event) => {
+function onMouseUp(event: MouseEvent): void {
   isDrawing = false;
-});
+}
 
-canvas.addEventListener("drawing-changed", () => {
+function onDrawingChanged(): void {
   context.clearRect(0, 0, canvas.width, canvas.height);
   redrawCanvas(context);
-});
+}
 
-canvas.addEventListener("tool-moved", () => {
+function onToolMoved(): void {
   context.clearRect(0, 0, canvas.width, canvas.height);
   redrawCanvas(context);
   toolPreview?.draw(context);
-});
+}
+
+// Event Listeners
+canvas.addEventListener("mousedown", onMouseDown);
+canvas.addEventListener("mousemove", onMouseMove);
+window.addEventListener("mouseup", onMouseUp);
+canvas.addEventListener("drawing-changed", onDrawingChanged);
+canvas.addEventListener("tool-moved", onToolMoved);
 
 // Tool Functions
 function drawNewDisplayableAt(mousePos: Point): void {
